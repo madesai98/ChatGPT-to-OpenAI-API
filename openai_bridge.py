@@ -165,6 +165,7 @@ with valid arguments matching function schema:
 {{"type":"tool_calls","calls":[{{"name":"exact_function_name","arguments":{{}}}}]}}
 The object MUST be syntactically valid JSON. Escape every backslash inside JSON
 strings as `\\\\`, especially in Windows paths such as `C:\\\\Users\\\\name`.
+Escape embedded double quotes as `\\"`, especially in regex and source strings.
 Never claim function ran. Client executes it and sends result next turn.
 When no function is needed, answer normally and do not emit that JSON object.
 """
@@ -224,6 +225,11 @@ def _balanced_json_objects(text: str) -> list[str]:
 def _candidate_json(text: str) -> list[str]:
     stripped = text.strip()
     candidates = [stripped]
+    protocol_start = stripped.find('{"type":"tool_calls"')
+    if protocol_start >= 0:
+        protocol_end = stripped.rfind("}")
+        if protocol_end > protocol_start:
+            candidates.append(stripped[protocol_start : protocol_end + 1])
     tag = re.search(r"<tool_calls>\s*(.*?)\s*</tool_calls>", stripped, re.S)
     if tag:
         candidates.append(tag.group(1))
@@ -253,10 +259,47 @@ def _even_backslash_runs(value: str) -> str:
     )
 
 
+def _repair_unescaped_quotes(value: str) -> str:
+    """Escape quotes that cannot structurally close their current JSON string."""
+    result: list[str] = []
+    in_string = False
+    escaped = False
+    for index, char in enumerate(value):
+        if not in_string:
+            result.append(char)
+            if char == '"':
+                in_string = True
+            continue
+        if escaped:
+            result.append(char)
+            escaped = False
+            continue
+        if char == "\\":
+            result.append(char)
+            escaped = True
+            continue
+        if char != '"':
+            result.append(char)
+            continue
+
+        following = index + 1
+        while following < len(value) and value[following].isspace():
+            following += 1
+        next_char = value[following : following + 1]
+        if not next_char or next_char in {":", ",", "}", "]"}:
+            result.append(char)
+            in_string = False
+        else:
+            result.append('\\"')
+    return "".join(result)
+
+
 def _repair_tool_json(candidate: str) -> str:
     """Repair common model mistakes without accepting arbitrary non-JSON."""
     if '"tool_calls"' not in candidate and '"type":"tool_calls"' not in candidate:
         return candidate
+
+    candidate = _repair_unescaped_quotes(candidate)
 
     # Models frequently forget that backslashes in a patch's Windows path are
     # themselves inside a JSON string. Preserve already-correct pairs and make
@@ -324,13 +367,59 @@ def _repair_tool_json(candidate: str) -> str:
     return "".join(result)
 
 
+_TOOL_CALL_START = re.compile(
+    r'\{\s*"name"\s*:\s*"(?P<name>[^"]+)"\s*,\s*'
+    r'"arguments"\s*:\s*',
+)
+
+
+def _recover_individual_tool_calls(candidate: str) -> list[dict[str, Any]]:
+    """Salvage valid calls when one malformed parallel call poisons the batch."""
+    matches = list(_TOOL_CALL_START.finditer(candidate))
+    recovered: list[dict[str, Any]] = []
+    for index, match in enumerate(matches):
+        if index + 1 < len(matches):
+            end = matches[index + 1].start()
+        else:
+            envelope_end = candidate.rfind("]}")
+            end = envelope_end if envelope_end >= match.end() else len(candidate)
+
+        segment = candidate[match.end() : end].rstrip()
+        if segment.endswith(","):
+            segment = segment[:-1].rstrip()
+        if not segment.endswith("}"):
+            continue
+
+        # The last brace closes the call wrapper; the preceding object is the
+        # arguments value. Re-wrap it so the same constrained repair applies.
+        arguments_text = segment[:-1].rstrip()
+        wrapped = (
+            '{"type":"tool_calls","calls":[{"name":'
+            + _json_text(match.group("name"))
+            + ',"arguments":'
+            + arguments_text
+            + "}]}"
+        )
+        try:
+            value = json.loads(_repair_tool_json(wrapped))
+        except (json.JSONDecodeError, TypeError):
+            continue
+        calls = value.get("calls") if isinstance(value, dict) else None
+        if isinstance(calls, list) and calls and isinstance(calls[0], dict):
+            recovered.append(calls[0])
+    return recovered
+
+
 def parse_tool_calls(text: str, allowed_names: set[str]) -> tuple[ToolCall, ...]:
     """Parse bridge tool protocol; ordinary model JSON remains ordinary text."""
     for candidate in _candidate_json(text):
         try:
             value = json.loads(_repair_tool_json(candidate))
         except (json.JSONDecodeError, TypeError):
-            continue
+            recovered = _recover_individual_tool_calls(candidate)
+            if not recovered:
+                continue
+            value = {"type": "tool_calls", "calls": recovered}
         if not isinstance(value, dict):
             continue
         calls = value.get("calls") or value.get("tool_calls")

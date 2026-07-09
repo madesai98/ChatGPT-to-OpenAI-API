@@ -146,6 +146,35 @@ class ToolCallTests(unittest.TestCase):
             r"C:\Users\Mihir\Code\WebLLM2API\test.txt",
         )
 
+    def test_repairs_regex_quotes_and_preserves_parallel_calls(self) -> None:
+        calls = parse_tool_calls(
+            r'''{"type":"tool_calls","calls":[{"name":"read_file","arguments":{"filePath":"c:\Users\Mihir\Code\WebLLM2API\openai_bridge.py","startLine":401,"endLine":900}},{"name":"run_in_terminal","arguments":{"command":"uv run python -m unittest -q","mode":"sync"}},{"name":"grep_search","arguments":{"query":"TODO|FIXME|allow_origins=\["\"\]|print\(","isRegexp":true,"includePattern":"**/.py","maxResults":100}}]}''',
+            {"read_file", "run_in_terminal", "grep_search"},
+        )
+        self.assertEqual(
+            [call.name for call in calls],
+            ["read_file", "run_in_terminal", "grep_search"],
+        )
+        read_arguments = json.loads(calls[0].arguments)
+        self.assertEqual(
+            read_arguments["filePath"],
+            r"c:\Users\Mihir\Code\WebLLM2API\openai_bridge.py",
+        )
+        grep_arguments = json.loads(calls[2].arguments)
+        self.assertEqual(
+            grep_arguments["query"],
+            r'''TODO|FIXME|allow_origins=\[""\]|print\(''',
+        )
+
+    def test_salvages_valid_parallel_call_when_another_is_irreparable(
+        self,
+    ) -> None:
+        calls = parse_tool_calls(
+            r'''{"type":"tool_calls","calls":[{"name":"read_file","arguments":{"filePath":"README.md","startLine":1,"endLine":20}},{"name":"grep_search","arguments":not-json}]}''',
+            {"read_file", "grep_search"},
+        )
+        self.assertEqual([call.name for call in calls], ["read_file"])
+
 
 if __name__ == "__main__":
     unittest.main()
