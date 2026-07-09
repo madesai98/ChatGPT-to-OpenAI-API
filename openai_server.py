@@ -21,7 +21,7 @@ Features:
 
 Run:
   pip install -r requirements.txt
-  python mock_openai_server.py --host 127.0.0.1 --port 8000
+  python run.py --host 127.0.0.1 --port 8000
 
 Point harnesses/SDKs at:
   OPENAI_BASE_URL=http://127.0.0.1:8000/v1
@@ -31,16 +31,17 @@ Dashboard:
   http://127.0.0.1:8000/dashboard
 
 Optional:
-  MOCK_OPENAI_MAX_CAPTURE_BYTES=0 python mock_openai_server.py --port 8000
-  MOCK_OPENAI_LOG_DIR=./logs python mock_openai_server.py --port 8000
+  MOCK_OPENAI_MAX_CAPTURE_BYTES=0 python run.py --port 8000
+  MOCK_OPENAI_LOG_DIR=./logs python run.py --port 8000
+  python run.py --log-level debug
 """
 
 from __future__ import annotations
 
-import argparse
 import base64
 import hashlib
 import json
+import logging
 import os
 import struct
 import time
@@ -50,13 +51,13 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncIterator
 
-import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response, StreamingResponse
 
 from browser import BrowserError
 from openai_bridge import BridgeResult, BrowserChatGPTBridge
+from app_logging import VERBOSE
 
 
 # -----------------------------------------------------------------------------
@@ -71,6 +72,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="WebLLM2API", version="1.0.0", lifespan=lifespan)
+LOGGER = logging.getLogger("webllm2api.server")
 
 app.add_middleware(
     CORSMiddleware,
@@ -117,6 +119,7 @@ BRIDGE = BrowserChatGPTBridge()
 
 @app.exception_handler(BrowserError)
 async def browser_error_handler(_: Request, exc: BrowserError) -> JSONResponse:
+    LOGGER.warning("ChatGPT browser request failed: %s", exc)
     return JSONResponse(
         {
             "error": {
@@ -463,7 +466,19 @@ def persist_event(record: dict[str, Any]) -> None:
     with REQUEST_LOG.open("a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
-    print(json.dumps(record, ensure_ascii=False), flush=True)
+    response = record.get("response") or {}
+    LOGGER.debug(
+        "%s %s -> %s in %sms",
+        record.get("method"),
+        record.get("path"),
+        response.get("status_code"),
+        record.get("duration_ms"),
+    )
+    LOGGER.log(
+        VERBOSE,
+        "Request/response payload: %s",
+        json.dumps(record, ensure_ascii=False),
+    )
 
 
 # -----------------------------------------------------------------------------
@@ -506,6 +521,11 @@ async def log_requests(request: Request, call_next):
     try:
         response = await call_next(request_for_downstream)
     except Exception as exc:
+        LOGGER.exception(
+            "Unhandled error while processing %s %s",
+            request.method,
+            path,
+        )
         record = {
             **base_record,
             "duration_ms": round((time.time() - started_at) * 1000, 2),
@@ -2475,37 +2495,3 @@ async def openai_fallback(path: str, request: Request):
     )
 
 
-# -----------------------------------------------------------------------------
-# Entrypoint
-# -----------------------------------------------------------------------------
-
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--host", default=os.getenv("HOST", "127.0.0.1"))
-    parser.add_argument("--port", default=int(os.getenv("PORT", "8000")), type=int)
-    parser.add_argument("--reload", action="store_true")
-    args = parser.parse_args()
-
-    if args.reload:
-        # Reload mode requires an import string.
-        # Make sure this file is named mock_openai_server.py.
-        uvicorn.run(
-            "mock_openai_server:app",
-            host=args.host,
-            port=args.port,
-            reload=True,
-            log_level="info",
-        )
-    else:
-        # Passing the app object directly avoids "Could not import module" issues
-        # when users rename or move the file.
-        uvicorn.run(
-            app,
-            host=args.host,
-            port=args.port,
-            log_level="info",
-        )
-
-
-if __name__ == "__main__":
-    main()
