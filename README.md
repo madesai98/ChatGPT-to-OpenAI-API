@@ -1,8 +1,10 @@
 # ChatGPT to OpenAI-API
 
-This project exposes a local OpenAI-compatible HTTP API and sends text-generation requests through a logged-in ChatGPT browser session.
+This project exposes a local OpenAI-compatible HTTP API and sends text-generation requests through a logged-in ChatGPT browser session so that people on the $20/mo plan can fully utilize what comes with their subscription inside of Codex or other agent harnesses. You get 160/messages every 3 hours on ChatGPT Plus using the website which can massively supplement the usage you already get on Codex itself, so it would be a waste not to be using it.
 
 Use it when a tool, SDK, benchmark harness, or local script expects OpenAI-style endpoints but you want the actual response to come from ChatGPT in the browser. The server also logs every request and response so you can inspect what a client sent, what the server returned, and which endpoint handled the call.
+
+This ONLY exposes the highest thinking model available on ChatGPT Plus subscriptions. Feel free to clone it and extend it to add all the models available or make it compatible with other subscription tiers or model providers. This is simply a tool I use for myself to get the most out of my ChatGPT Plus subscription. The code is modular though and everything specific to chatgpt itself is contained in the chatgpt.py file, so you can easily extend it to work for your personal needs.
 
 ## What this project provides
 
@@ -37,7 +39,7 @@ Install these before you run the server:
 
 - Python 3.11 or newer.
 - A Chromium-compatible browser that Zendriver can start.
-- A ChatGPT account that can access https://chatgpt.com/.
+- A ChatGPT Plus account that can access https://chatgpt.com/. ($20/mo subscription)
 - PowerShell, Command Prompt, Windows Terminal, macOS Terminal, or any shell that can run Python commands.
 
 The project pins these Python packages in requirements.txt:
