@@ -103,7 +103,7 @@ To store the browser profile somewhere else, set this environment variable befor
 Windows PowerShell:
 
 powershell
-$env:ZENDRIVER_PROFILE_DIR = "C:\Users\Mihir\.webllm2api-profile"
+$env:ZENDRIVER_PROFILE_DIR = "C:\Users\Name\.webllm2api-profile"
 
 
 macOS or Linux:
@@ -259,8 +259,20 @@ ask TEXT Clear the composer, send TEXT, and stream the response
 send [TEXT] Append optional TEXT, then send the composer
 new_chat Start an empty ChatGPT conversation
 open_chat URL_OR_ID Resume a ChatGPT conversation
+clear_text Clear the current composer contents
+stop Stop an in-progress ChatGPT generation
 model Print the latest rendered model slug
+go URL Navigate the browser to a URL
+back Go back in browser history
+forward Go forward in browser history
+reload Reload the current page
 url Print the current page URL
+title Print the current page title
+click CSS_SELECTOR Click an element
+type CSS_SELECTOR TEXT Type into an element
+text CSS_SELECTOR Print an element's text
+html [CSS_SELECTOR] Print page or element HTML
+js JAVASCRIPT_EXPRESSION Evaluate JavaScript in the page
 screenshot PATH Save a screenshot to PATH
 quit Close the shell
 
@@ -280,6 +292,8 @@ Set these environment variables before starting run.py.
 | HOST | 127.0.0.1 | Default host for python run.py when --host is omitted. |
 | PORT | 8000 | Default port for python run.py when --port is omitted. |
 | ZENDRIVER_PROFILE_DIR | ~/.webllm2api-zendriver-profile | Browser profile path that stores ChatGPT login state. |
+| WEBLLM_HEADLESS | 1 | Run the server-managed browser headlessly. Set to 0, false, or no to show the browser window. |
+| WEBLLM_GENERATION_TIMEOUT | 900 | Default maximum generation time in seconds when a request does not provide a timeout. |
 | MOCK_OPENAI_LOG_DIR | ./openai_mock_logs | Directory for requests.jsonl. |
 | MOCK_OPENAI_MAX_CAPTURE_BYTES | 10485760 | Max request or response bytes stored per event. Set 0 for unlimited capture. |
 | MOCK_OPENAI_IN_MEMORY_LOG_LIMIT | 500 | Max events held by /__events and the dashboard. |
@@ -347,7 +361,7 @@ Windows paths need escaped backslashes inside JSON strings:
 
 json
 {
- "path": "C:\\Users\\Mihir\\Code\\WebLLM2API\\README.md"
+ "path": "C:\\Users\\Name\\Code\\WebLLM2API\\README.md"
 }
 
 
