@@ -1,6 +1,6 @@
-# WebLLM2API
+# ChatGPT to OpenAI-API
 
-WebLLM2API exposes a local OpenAI-compatible HTTP API and sends text-generation requests through a logged-in ChatGPT browser session.
+This project exposes a local OpenAI-compatible HTTP API and sends text-generation requests through a logged-in ChatGPT browser session.
 
 Use it when a tool, SDK, benchmark harness, or local script expects OpenAI-style endpoints but you want the actual response to come from ChatGPT in the browser. The server also logs every request and response so you can inspect what a client sent, what the server returned, and which endpoint handled the call.
 
@@ -17,7 +17,7 @@ Use it when a tool, SDK, benchmark harness, or local script expects OpenAI-style
 
 ## Repository layout
 
-text
+```text
 .
 ├── app_logging.py # Shared logging setup for the server and Uvicorn
 ├── browser.py # Zendriver browser lifecycle and page helpers
@@ -29,7 +29,7 @@ text
 ├── run.py # CLI entrypoint for the HTTP server
 ├── test_openai_bridge.py # Prompt and tool-call parser tests
 └── test_run.py # CLI logging tests
-
+```
 
 ## Requirements
 
@@ -42,59 +42,59 @@ Install these before you run the server:
 
 The project pins these Python packages in requirements.txt:
 
-text
+```text
 fastapi==0.115.14
 uvicorn[standard]==0.35.0
 python-multipart==0.0.20
 zendriver==0.15.4
-
+```
 
 ## Install from a local clone
 
 Clone the repository and enter it:
 
-bash
-git clone https://github.com/<your-name>/WebLLM2API.git
-cd WebLLM2API
-
+```bash
+git clone https://github.com/<your-name>/ChatGPT-to-OpenAI-API.git
+cd ChatGPT-to-OpenAI-API
+```
 
 Create a virtual environment:
 
-bash
+```bash
 python -m venv .venv
-
+```
 
 Activate it on Windows PowerShell:
 
-powershell
+```powershell
 .\.venv\Scripts\Activate.ps1
-
+```
 
 Activate it on Windows Command Prompt:
 
-bat
+```bat
 .venv\Scripts\activate.bat
-
+```
 
 Activate it on macOS or Linux:
 
-bash
+```bash
 source .venv/bin/activate
-
+```
 
 Install dependencies:
 
-bash
+```bash
 python -m pip install -r requirements.txt
-
+```
 
 ## Sign in to ChatGPT
 
 The server needs a persistent browser profile with a logged-in ChatGPT session. Run the manual auth command first:
 
-bash
+```bash
 python browser_cli.py --headful -c "auth"
-
+```
 
 A browser window opens at ChatGPT. Sign in, complete any browser checks, then close the whole browser window. The profile saves cookies and local storage under ~/.webllm2api-zendriver-profile unless you set ZENDRIVER_PROFILE_DIR.
 
@@ -102,15 +102,15 @@ To store the browser profile somewhere else, set this environment variable befor
 
 Windows PowerShell:
 
-powershell
+```powershell
 $env:ZENDRIVER_PROFILE_DIR = "C:\Users\Name\.webllm2api-profile"
-
+```
 
 macOS or Linux:
 
-bash
+```bash
 export ZENDRIVER_PROFILE_DIR="$HOME/.webllm2api-profile"
-
+```
 
 Use the same value every time. If you change it, the server starts with a different browser profile and ChatGPT will ask you to sign in again.
 
@@ -118,33 +118,33 @@ Use the same value every time. If you change it, the server starts with a differ
 
 Start the local server:
 
-bash
+```bash
 python run.py --host 127.0.0.1 --port 8000
-
+```
 
 Open the health endpoint:
 
-text
+```text
 http://127.0.0.1:8000/health
-
+```
 
 Open the dashboard:
 
-text
+```text
 http://127.0.0.1:8000/dashboard
-
+```
 
 Run with auto-reload while editing server code:
 
-bash
+```bash
 python run.py --host 127.0.0.1 --port 8000 --reload
-
+```
 
 Raise log detail when you need request routing, browser, or stream diagnostics:
 
-bash
+```bash
 python run.py --log-level debug
-
+```
 
 Available log levels are verbose, debug, info, warning, and error.
 
@@ -152,10 +152,10 @@ Available log levels are verbose, debug, info, warning, and error.
 
 Set these values in any client that supports a custom OpenAI base URL:
 
-bash
+```bash
 OPENAI_BASE_URL=http://127.0.0.1:8000/v1
 OPENAI_API_KEY=anything
-
+```
 
 The server redacts API keys in logged headers. It does not validate the key.
 
@@ -163,13 +163,13 @@ The server redacts API keys in logged headers. It does not validate the key.
 
 Install the OpenAI Python SDK in your own client environment:
 
-bash
+```bash
 python -m pip install openai
-
+```
 
 Run a chat completion:
 
-python
+```python
 from openai import OpenAI
 
 client = OpenAI(
@@ -185,11 +185,11 @@ response = client.chat.completions.create(
 )
 
 print(response.choices[0].message.content)
-
+```
 
 Run a responses request:
 
-python
+```python
 from openai import OpenAI
 
 client = OpenAI(
@@ -203,13 +203,13 @@ response = client.responses.create(
 )
 
 print(response.output_text)
-
+```
 
 ## curl examples
 
 Chat completions:
 
-bash
+```bash
 curl http://127.0.0.1:8000/v1/chat/completions \
  -H "Authorization: Bearer anything" \
  -H "Content-Type: application/json" \
@@ -219,11 +219,11 @@ curl http://127.0.0.1:8000/v1/chat/completions \
  {"role": "user", "content": "Say hello in one sentence."}
  ]
  }'
-
+```
 
 Responses:
 
-bash
+```bash
 curl http://127.0.0.1:8000/v1/responses \
  -H "Authorization: Bearer anything" \
  -H "Content-Type: application/json" \
@@ -231,14 +231,14 @@ curl http://127.0.0.1:8000/v1/responses \
  "model": "gpt-5-5-thinking",
  "input": "Say hello in one sentence."
  }'
-
+```
 
 Models:
 
-bash
+```bash
 curl http://127.0.0.1:8000/v1/models \
  -H "Authorization: Bearer anything"
-
+```
 
 ## Browser command shell
 
@@ -246,13 +246,13 @@ browser_cli.py gives you direct control over the persistent browser session. Use
 
 Start an interactive shell:
 
-bash
+```bash
 python browser_cli.py --headful
-
+```
 
 Common commands:
 
-text
+```text
 auth Open ChatGPT in a headful browser for manual login
 sc Open chatgpt.com
 ask TEXT Clear the composer, send TEXT, and stream the response
@@ -275,13 +275,13 @@ html [CSS_SELECTOR] Print page or element HTML
 js JAVASCRIPT_EXPRESSION Evaluate JavaScript in the page
 screenshot PATH Save a screenshot to PATH
 quit Close the shell
-
+```
 
 Run one command and exit:
 
-bash
+```bash
 python browser_cli.py --headful -c "ask Write a two-word greeting."
-
+```
 
 ## Configuration
 
@@ -308,15 +308,15 @@ The server records endpoint calls in two places:
 
 Use the dashboard for quick debugging:
 
-text
+```text
 http://127.0.0.1:8000/dashboard
-
+```
 
 Clear in-memory and disk logs through the log API:
 
-bash
+```bash
 curl -X DELETE http://127.0.0.1:8000/__logs
-
+```
 
 Keep logs out of public bug reports when they contain prompts, file contents, tool arguments, or private URLs. The server redacts authorization headers, but request bodies can still contain sensitive user content.
 
@@ -343,7 +343,7 @@ When an OpenAI client supplies function tools, the server preserves the tool sch
 
 The tool-call JSON shape is:
 
-json
+```json
 {
  "type": "tool_calls",
  "calls": [
@@ -355,15 +355,15 @@ json
  }
  ]
 }
-
+```
 
 Windows paths need escaped backslashes inside JSON strings:
 
-json
+```json
 {
- "path": "C:\\Users\\Name\\Code\\WebLLM2API\\README.md"
+ "path": "C:\\Users\\Name\\Folder\\README.md"
 }
-
+```
 
 The parser also repairs common client-output mistakes, including raw newlines inside JSON strings and unescaped Windows paths in tool-call payloads.
 
@@ -371,22 +371,22 @@ The parser also repairs common client-output mistakes, including raw newlines in
 
 Run the unit tests:
 
-bash
+```bash
 python -m unittest -q
-
+```
 
 Run a syntax check over the Python files:
 
-bash
+```bash
 python -m compileall .
-
+```
 
 Run both before opening a pull request:
 
-bash
+```bash
 python -m compileall .
 python -m unittest -q
-
+```
 
 ## Open-source checklist
 
@@ -405,17 +405,17 @@ Before publishing a repository or release package:
 
 Install dependencies again inside the active virtual environment:
 
-bash
+```bash
 python -m pip install -r requirements.txt
-
+```
 
 ### The server opens ChatGPT but stays signed out
 
 Run auth with the same ZENDRIVER_PROFILE_DIR that the server uses:
 
-bash
+```bash
 python browser_cli.py --headful -c "auth"
-
+```
 
 Close the whole browser window after login. A tab close may not flush profile state on every platform.
 
@@ -427,9 +427,9 @@ Stop other python run.py and browser_cli.py processes. Zendriver needs exclusive
 
 Open the dashboard and inspect the failed request. Then run a direct shell test:
 
-bash
+```bash
 python browser_cli.py --headful -c "ask Say hello in one short sentence."
-
+```
 
 If the shell test fails, sign in again with auth and confirm ChatGPT can send a normal message in the visible browser.
 
@@ -437,15 +437,15 @@ If the shell test fails, sign in again with auth and confirm ChatGPT can send a 
 
 Move logs to a temporary folder:
 
-bash
+```bash
 MOCK_OPENAI_LOG_DIR=/tmp/webllm2api-logs python run.py --port 8000
-
+```
 
 Limit captured body size:
 
-bash
+```bash
 MOCK_OPENAI_MAX_CAPTURE_BYTES=200000 python run.py --port 8000
-
+```
 
 ### A benchmark calls an endpoint that is not implemented
 
