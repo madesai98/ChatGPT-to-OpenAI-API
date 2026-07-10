@@ -3,7 +3,23 @@ from __future__ import annotations
 import json
 import unittest
 
-from openai_bridge import build_prompt, parse_tool_calls
+from chatgpt import ChatGPTResponse
+from openai_bridge import (
+    BrowserChatGPTBridge,
+    build_prompt,
+    parse_tool_call_result,
+    parse_tool_calls,
+)
+
+
+class FakeChatGPT:
+    def __init__(self, responses: list[ChatGPTResponse]) -> None:
+        self.responses = responses
+        self.calls: list[tuple[str, object, dict[str, object]]] = []
+
+    async def ask(self, text: str, callback: object = None, **kwargs: object) -> ChatGPTResponse:
+        self.calls.append((text, callback, kwargs))
+        return self.responses.pop(0)
 
 
 class PromptTests(unittest.TestCase):
@@ -189,14 +205,164 @@ go-rod/rod and cdpdriver/zendriver as browser automation options"}}]}''',
             r'''TODO|FIXME|allow_origins=\[""\]|print\(''',
         )
 
-    def test_salvages_valid_parallel_call_when_another_is_irreparable(
+    def test_marks_irreparable_parallel_batch_for_retry(
         self,
     ) -> None:
-        calls = parse_tool_calls(
+        result = parse_tool_call_result(
             r'''{"type":"tool_calls","calls":[{"name":"read_file","arguments":{"filePath":"README.md","startLine":1,"endLine":20}},{"name":"grep_search","arguments":not-json}]}''',
             {"read_file", "grep_search"},
         )
-        self.assertEqual([call.name for call in calls], ["read_file"])
+        self.assertTrue(result.attempted)
+        self.assertEqual(result.calls, ())
+        self.assertTrue(result.errors)
+
+    def test_detects_malformed_shell_tool_call(self) -> None:
+        result = parse_tool_call_result(
+            r'''{"type":"tool_calls","calls":[{"name":"run_in_terminal","arguments":{"command":"$banned = @("Delve", "tapestry"); if ($hits.Count -gt 0) { Write-Error ("README violation: " + ($hits -join ", ")); exit 1 }; if ($text.Contains([char]0x2014)) { $hits += "em dash" }; uv run python -m unittest -q","mode":"sync"}}]}''',
+            {"run_in_terminal"},
+        )
+        self.assertTrue(result.attempted)
+        self.assertEqual([call.name for call in result.calls], ["run_in_terminal"])
+        arguments = json.loads(result.calls[0].arguments)
+        self.assertEqual(
+            arguments["command"],
+            '$banned = @("Delve", "tapestry"); if ($hits.Count -gt 0) { Write-Error ("README violation: " + ($hits -join ", ")); exit 1 }; if ($text.Contains([char]0x2014)) { $hits += "em dash" }; uv run python -m unittest -q',
+        )
+
+    def test_detects_malformed_patch_tool_call(self) -> None:
+        result = parse_tool_call_result(
+            r'''{"type":"tool_calls","calls":[{"name":"apply_patch","arguments":{"input":"*** Begin Patch\n*** Update File: C:\Users\Mihir\Code\WebLLM2API\openai_bridge.py\n+value = '{"type":"tool_calls"}'\n*** End Patch","explanation":"Add parser helper"}}]}''',
+            {"apply_patch"},
+        )
+        self.assertTrue(result.attempted)
+        self.assertEqual([call.name for call in result.calls], ["apply_patch"])
+        arguments = json.loads(result.calls[0].arguments)
+        self.assertIn("value = '{\"type\":\"tool_calls\"}'", arguments["input"])
+
+
+class BridgeRetryTests(unittest.IsolatedAsyncioTestCase):
+    @staticmethod
+    def payload() -> dict[str, object]:
+        return {
+            "input": "Read README.md.",
+            "tools": [
+                {
+                    "type": "function",
+                    "name": "read_file",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"filePath": {"type": "string"}},
+                        "required": ["filePath"],
+                    },
+                }
+            ],
+        }
+
+    @staticmethod
+    def response(output: str) -> ChatGPTResponse:
+        return ChatGPTResponse(
+            reasoning="",
+            output=output,
+            model="gpt-5.5",
+            effort="high",
+            conversation_url="https://chatgpt.com/c/test-bridge",
+        )
+
+    async def test_retries_malformed_tool_call_before_emitting_output(self) -> None:
+        bridge = BrowserChatGPTBridge(headless=True)
+        fake = FakeChatGPT(
+            [
+                self.response(
+                    '{"type":"tool_calls","calls":[{"name":"read_file"'
+                ),
+                self.response(
+                    '{"type":"tool_calls","calls":[{"name":"read_file",'
+                    '"arguments":{"filePath":"README.md"}}]}'
+                ),
+            ]
+        )
+        bridge.chatgpt = fake  # type: ignore[assignment]
+        events: list[object] = []
+
+        result = await bridge.generate(
+            self.payload(),
+            surface="responses",
+            callback=events.append,
+        )
+
+        self.assertEqual([call.name for call in result.tool_calls], ["read_file"])
+        self.assertEqual(result.text, "")
+        self.assertEqual(len(fake.calls), 2)
+        self.assertIsNone(fake.calls[0][1])
+        self.assertIn("AVAILABLE CLIENT FUNCTIONS", fake.calls[0][0])
+        self.assertIn("bridge validation rejected it", fake.calls[1][0])
+        self.assertNotIn("AVAILABLE CLIENT FUNCTIONS", fake.calls[1][0])
+        self.assertEqual(events, [])
+
+    async def test_reuses_protocol_on_unchanged_continuation(self) -> None:
+        bridge = BrowserChatGPTBridge(headless=True)
+        fake = FakeChatGPT([self.response("First."), self.response("Second.")])
+        bridge.chatgpt = fake  # type: ignore[assignment]
+
+        first = await bridge.generate(self.payload(), surface="responses")
+        continuation = self.payload()
+        continuation["input"] = [
+            {
+                "type": "function_call_output",
+                "call_id": "call_1",
+                "output": "README contents",
+            }
+        ]
+        second = await bridge.generate(
+            continuation,
+            surface="responses",
+            conversation_url=first.conversation_url,
+        )
+
+        self.assertEqual(second.text, "Second.")
+        self.assertIn("AVAILABLE CLIENT FUNCTIONS", fake.calls[0][0])
+        self.assertNotIn("AVAILABLE CLIENT FUNCTIONS", fake.calls[1][0])
+        self.assertIn("TOOL RESULT (call_id=call_1)", fake.calls[1][0])
+
+    async def test_refreshes_protocol_when_tools_change(self) -> None:
+        bridge = BrowserChatGPTBridge(headless=True)
+        fake = FakeChatGPT([self.response("First."), self.response("Second.")])
+        bridge.chatgpt = fake  # type: ignore[assignment]
+
+        first = await bridge.generate(self.payload(), surface="responses")
+        changed = self.payload()
+        changed["tools"] = [
+            *changed["tools"],
+            {
+                "type": "function",
+                "name": "list_files",
+                "parameters": {"type": "object"},
+            },
+        ]
+        await bridge.generate(
+            changed,
+            surface="responses",
+            conversation_url=first.conversation_url,
+        )
+
+        self.assertIn("AVAILABLE CLIENT FUNCTIONS", fake.calls[1][0])
+        self.assertIn('"name": "list_files"', fake.calls[1][0])
+
+    async def test_hides_twice_invalid_tool_call(self) -> None:
+        bridge = BrowserChatGPTBridge(headless=True)
+        fake = FakeChatGPT(
+            [
+                self.response('{"type":"tool_calls","calls":['),
+                self.response('{"type":"tool_calls","calls":['),
+            ]
+        )
+        bridge.chatgpt = fake  # type: ignore[assignment]
+
+        result = await bridge.generate(self.payload(), surface="responses")
+
+        self.assertEqual(result.tool_calls, ())
+        self.assertIn("could not validate", result.text)
+        self.assertNotIn('"type":"tool_calls"', result.text)
 
 
 if __name__ == "__main__":
