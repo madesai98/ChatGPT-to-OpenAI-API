@@ -90,6 +90,29 @@ class ToolCallTests(unittest.TestCase):
         )
         self.assertEqual(calls, ())
 
+    def test_repairs_raw_newline_in_fetch_webpage_query(self) -> None:
+        calls = parse_tool_calls(
+            '''{"type":"tool_calls","calls":[{"name":"fetch_webpage","arguments":{"urls":["https://github.com/go-rod/rod","https://github.com/cdpdriver/zendriver"],"query":"Compare
+go-rod/rod and cdpdriver/zendriver as browser automation options"}}]}''',
+            {"fetch_webpage"},
+        )
+
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0].name, "fetch_webpage")
+
+        arguments = json.loads(calls[0].arguments)
+        self.assertEqual(
+            arguments["query"],
+            "Compare\ngo-rod/rod and cdpdriver/zendriver as browser automation options",
+        )
+        self.assertEqual(
+            arguments["urls"],
+            [
+                "https://github.com/go-rod/rod",
+                "https://github.com/cdpdriver/zendriver",
+            ],
+        )
+
     def test_repairs_unescaped_windows_path_and_ignores_trailing_markdown(
         self,
     ) -> None:

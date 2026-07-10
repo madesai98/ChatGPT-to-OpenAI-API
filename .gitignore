@@ -53,3 +53,7 @@ desktop.ini
 .swp
 *.swo
 .agents
+.gitnexus
+.claude
+AGENTS.md
+CLAUDE.md
