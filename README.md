@@ -63,7 +63,7 @@ cd ChatGPT-to-OpenAI-API
 Create a virtual environment:
 
 ```bash
-python -m venv .venv
+uv venv --python 3.12
 ```
 
 Activate it on Windows PowerShell:
