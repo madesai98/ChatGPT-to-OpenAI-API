@@ -133,10 +133,10 @@ class BrowserShell:
         response = await self.chatgpt.send(self._print_stream)
         if self._stream_kind is not None:
             print()
-        if response.model and response.model != "gpt-5-5-thinking":
+        if response.model and response.model != "gpt-5-6-thinking":
             print(
                 f"warning: rendered model was {response.model}, "
-                "not gpt-5-5-thinking",
+                "not gpt-5-6-thinking",
                 file=sys.stderr,
             )
         if response.effort and response.effort not in {"high", "extended"}:

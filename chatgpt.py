@@ -19,7 +19,7 @@ SEND_SELECTOR = 'button[data-testid="send-button"]'
 STOP_SELECTOR = (
     'button[data-testid="stop-button"],button[aria-label="Stop generating"]'
 )
-TARGET_MODEL_SLUG = "gpt-5-5-thinking"
+TARGET_MODEL_SLUG = "gpt-5-6-thinking"
 
 StreamKind = Literal["reasoning", "output", "status"]
 

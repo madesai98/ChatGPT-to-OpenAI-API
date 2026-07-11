@@ -180,7 +180,7 @@ client = OpenAI(
 )
 
 response = client.chat.completions.create(
- model="gpt-5-5-thinking",
+ model="gpt-5-6-thinking",
  messages=[
  {"role": "user", "content": "Write one sentence about FastAPI."}
  ],
@@ -200,7 +200,7 @@ client = OpenAI(
 )
 
 response = client.responses.create(
- model="gpt-5-5-thinking",
+ model="gpt-5-6-thinking",
  input="Write one sentence about Zendriver.",
 )
 
@@ -216,7 +216,7 @@ curl http://127.0.0.1:8000/v1/chat/completions \
  -H "Authorization: Bearer anything" \
  -H "Content-Type: application/json" \
  -d '{
- "model": "gpt-5-5-thinking",
+ "model": "gpt-5-6-thinking",
  "messages": [
  {"role": "user", "content": "Say hello in one sentence."}
  ]
@@ -230,7 +230,7 @@ curl http://127.0.0.1:8000/v1/responses \
  -H "Authorization: Bearer anything" \
  -H "Content-Type: application/json" \
  -d '{
- "model": "gpt-5-5-thinking",
+ "model": "gpt-5-6-thinking",
  "input": "Say hello in one sentence."
  }'
 ```

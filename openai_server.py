@@ -1124,9 +1124,7 @@ async def clear_logs():
 async def list_models():
     created = 1735689600
     models = [
-        "gpt-5.5",
-        "gpt-5.5-thinking",
-        "gpt-5-5-thinking",
+        "gpt-5-6-thinking",
     ]
     return {
         "object": "list",
